@@ -6,26 +6,21 @@ const SPYLNX_AUTH = (env) => ({
   'Content-Type': 'application/json'
 });
 
-// Main worker export
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Serve frontend
     if (request.method === 'GET' && url.pathname === '/') {
       return new Response(htmlPage(), { headers: { 'content-type': 'text/html' } });
     }
 
-    // Email/phone lookup
     if (request.method === 'POST' && url.pathname === '/api/check') {
       const { email, phone } = await request.json();
 
-      // Email lookup
       if (email) {
         const found = await lookupEmail(email, env);
         return Response.json(found);
       }
-      // Phone lookup
       if (phone) {
         const found = await lookupPhone(phone, env);
         return Response.json(found);
@@ -33,7 +28,6 @@ export default {
       return Response.json({ error: "Missing email or phone" }, { status: 400 });
     }
 
-    // Lead creation
     if (request.method === 'POST' && url.pathname === '/api/create') {
       const { email, phone, address } = await request.json();
       if (!email || !phone || !address)
@@ -53,51 +47,71 @@ export default {
   }
 };
 
-// ---- Helper functions ----
+// --- Updated lookup functions ---
 
-// Check email in customers and leads
 async function lookupEmail(email, env) {
   // Customers
   let r = await fetch(`${SPYLNX_BASE}/admin/customers/customer?main_email=${encodeURIComponent(email)}`, {
     headers: SPYLNX_AUTH(env)
   });
   let data = await r.json();
-  if (data && data.length > 0)
-    return { found: true, where: 'customer', id: data[0].id };
+  if (Array.isArray(data) && data.length > 0) {
+    const exact = data.find(
+      c => c.main_email && c.main_email.toLowerCase() === email.toLowerCase()
+    );
+    if (exact)
+      return { found: true, where: 'customer', id: exact.id };
+  }
 
   // Leads
   r = await fetch(`${SPYLNX_BASE}/admin/crm/leads?email=${encodeURIComponent(email)}`, {
     headers: SPYLNX_AUTH(env)
   });
   data = await r.json();
-  if (data && data.length > 0)
-    return { found: true, where: 'lead', id: data[0].id };
+  if (Array.isArray(data) && data.length > 0) {
+    const exact = data.find(
+      l => l.email && l.email.toLowerCase() === email.toLowerCase()
+    );
+    if (exact)
+      return { found: true, where: 'lead', id: exact.id };
+  }
 
   return { found: false };
 }
 
-// Check phone in customers and leads
 async function lookupPhone(phone, env) {
+  const clean = s => (s || '').replace(/\D/g, '');
+  const target = clean(phone);
+
   // Customers
   let r = await fetch(`${SPYLNX_BASE}/admin/customers/customer?phone=${encodeURIComponent(phone)}`, {
     headers: SPYLNX_AUTH(env)
   });
   let data = await r.json();
-  if (data && data.length > 0)
-    return { found: true, where: 'customer', id: data[0].id };
+  if (Array.isArray(data) && data.length > 0) {
+    const exact = data.find(
+      c => c.phone && clean(c.phone) === target
+    );
+    if (exact)
+      return { found: true, where: 'customer', id: exact.id };
+  }
 
   // Leads
   r = await fetch(`${SPYLNX_BASE}/admin/crm/leads?phone=${encodeURIComponent(phone)}`, {
     headers: SPYLNX_AUTH(env)
   });
   data = await r.json();
-  if (data && data.length > 0)
-    return { found: true, where: 'lead', id: data[0].id };
+  if (Array.isArray(data) && data.length > 0) {
+    const exact = data.find(
+      l => l.phone && clean(l.phone) === target
+    );
+    if (exact)
+      return { found: true, where: 'lead', id: exact.id };
+  }
 
   return { found: false };
 }
 
-// Create lead in Splynx
 async function createLead({ email, phone, address }, env) {
   const body = JSON.stringify({
     email,
@@ -115,8 +129,6 @@ async function createLead({ email, phone, address }, env) {
     return null;
   }
 }
-
-// ---- Frontend (HTML + JS) ----
 
 function htmlPage() {
   return `
