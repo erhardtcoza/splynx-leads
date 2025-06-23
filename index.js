@@ -1,5 +1,3 @@
-// index.js
-
 const SPYLNX_BASE = 'https://splynx.vinet.co.za/api/2.0';
 const SPYLNX_AUTH = (env) => ({
   'Authorization': `Basic ${env.SPYLNX_AUTH}`,
@@ -40,17 +38,15 @@ export default {
           id: lead.id,
           url: `https://splynx.vinet.co.za/admin/crm/leads/view/${lead.id}`
         });
-      return Response.json({ error: "Could not create lead" }, { status: 500 });
+      // Return Splynx's error details for debugging
+      return Response.json({ error: lead && lead.message ? lead.message : "Could not create lead", details: lead }, { status: 500 });
     }
 
     return new Response("Not found", { status: 404 });
   }
 };
 
-// --- Updated lookup functions ---
-
 async function lookupEmail(email, env) {
-  // Customers
   let r = await fetch(`${SPYLNX_BASE}/admin/customers/customer?main_email=${encodeURIComponent(email)}`, {
     headers: SPYLNX_AUTH(env)
   });
@@ -62,8 +58,6 @@ async function lookupEmail(email, env) {
     if (exact)
       return { found: true, where: 'customer', id: exact.id };
   }
-
-  // Leads
   r = await fetch(`${SPYLNX_BASE}/admin/crm/leads?email=${encodeURIComponent(email)}`, {
     headers: SPYLNX_AUTH(env)
   });
@@ -75,15 +69,12 @@ async function lookupEmail(email, env) {
     if (exact)
       return { found: true, where: 'lead', id: exact.id };
   }
-
   return { found: false };
 }
 
 async function lookupPhone(phone, env) {
   const clean = s => (s || '').replace(/\D/g, '');
   const target = clean(phone);
-
-  // Customers
   let r = await fetch(`${SPYLNX_BASE}/admin/customers/customer?phone=${encodeURIComponent(phone)}`, {
     headers: SPYLNX_AUTH(env)
   });
@@ -95,8 +86,6 @@ async function lookupPhone(phone, env) {
     if (exact)
       return { found: true, where: 'customer', id: exact.id };
   }
-
-  // Leads
   r = await fetch(`${SPYLNX_BASE}/admin/crm/leads?phone=${encodeURIComponent(phone)}`, {
     headers: SPYLNX_AUTH(env)
   });
@@ -108,12 +97,14 @@ async function lookupPhone(phone, env) {
     if (exact)
       return { found: true, where: 'lead', id: exact.id };
   }
-
   return { found: false };
 }
 
+// --- Lead creation sends dummy names ---
 async function createLead({ email, phone, address }, env) {
   const body = JSON.stringify({
+    first_name: "Unknown",
+    last_name: "Lead",
     email,
     phone,
     address
@@ -195,7 +186,6 @@ function htmlPage() {
       const email = emailStep.querySelector('input').value.trim();
       if (!email) return;
       result.innerHTML = "";
-      // Check email
       const res = await fetch('/api/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,7 +208,6 @@ function htmlPage() {
       const phone = phoneStep.querySelector('input').value.trim();
       if (!phone) return;
       result.innerHTML = "";
-      // Check phone
       const res = await fetch('/api/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -241,7 +230,6 @@ function htmlPage() {
       const address = addressStep.querySelector('input').value.trim();
       if (!address) return;
       result.innerHTML = "";
-      // Create lead
       const res = await fetch('/api/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,14 +239,14 @@ function htmlPage() {
       if (data.success) {
         result.innerHTML = '<span class="success">Lead created! ID: ' + data.id +
           '<br><a href="' + data.url + '" target="_blank">View in Splynx</a></span>';
-        // Reset for next capture
         state = { email: "", phone: "", address: "" };
         form.reset();
         addressStep.classList.add('hidden');
         emailStep.classList.remove('hidden');
         emailStep.querySelector('input').focus();
       } else {
-        result.innerHTML = '<span class="error">Error: ' + (data.error || 'Unknown') + '</span>';
+        result.innerHTML = '<span class="error">Error: ' + (data.error || 'Unknown') +
+        (data.details ? '<br><pre>' + JSON.stringify(data.details, null, 2) + '</pre>' : '') + '</span>';
       }
     };
   </script>
