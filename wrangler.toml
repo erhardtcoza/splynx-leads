@@ -1,0 +1,6 @@
+name = "vinet-lead-capture"
+main = "index.js"
+compatibility_date = "2024-06-01"
+
+[vars]
+SPYLNX_AUTH = "NTcxMDRhNGJjNjhhY2Y2MjRkMDliMmYwOTQ1ZTI1M2E6N2UyOTNmY2QyNzBjODJmOTdjNWQzODUwZjdhM2I1MTE=" # (replace with your actual Base64 auth)
